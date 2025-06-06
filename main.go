@@ -1,3 +1,7 @@
+// Copyright (c) 2025, Mads Moi-Aune <mads@moiaune.dev>
+//
+// SPDX-License-Identifier: BSD-3-Clause
+
 package main
 
 import (
