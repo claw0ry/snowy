@@ -64,27 +64,45 @@ func (a *OAuth2Profile) Save() error {
 }
 
 func newOAuth2Client(ctx context.Context, profile *OAuth2Profile) (*http.Client, error) {
-	if profile.Token.Valid() {
-		ts := oauth2.ReuseTokenSource(profile.Token, tokenRefresher(ctx, profile.Config, profile.Token))
-		tok, _ := ts.Token()
-		profile.Token = tok
-		return oauth2.NewClient(ctx, ts), nil
+	if profile.Config == nil || profile.Token == nil {
+		return nil, fmt.Errorf("You are not logged in. Please run 'snowy login'.")
 	}
 
-	return nil, fmt.Errorf("Token has expired. Please run 'snowy login'.")
+	ts := tokenRefresher(ctx, profile)
+
+	tok, err := ts.Token()
+	if err != nil {
+		return nil, fmt.Errorf("Your refresh token has expired. Please run 'snowy login' to reauthenticate")
+	}
+
+	profile.Token = tok
+	if err := profile.Save(); err != nil {
+		return nil, fmt.Errorf("failed to save refreshed token: %w", err)
+	}
+
+	return oauth2.NewClient(ctx, ts), nil
 }
 
 type tokenSourceFunc func() (*oauth2.Token, error)
 
 func (f tokenSourceFunc) Token() (*oauth2.Token, error) { return f() }
 
-func tokenRefresher(ctx context.Context, cfg *oauth2.Config, initial *oauth2.Token) oauth2.TokenSource {
-	base := cfg.TokenSource(ctx, initial)
-	return oauth2.ReuseTokenSource(initial, tokenSourceFunc(func() (*oauth2.Token, error) {
+func tokenRefresher(ctx context.Context, profile *OAuth2Profile) oauth2.TokenSource {
+	base := profile.Config.TokenSource(ctx, profile.Token)
+
+	return oauth2.ReuseTokenSource(profile.Token, tokenSourceFunc(func() (*oauth2.Token, error) {
 		tok, err := base.Token()
 		if err != nil {
 			return nil, err
 		}
+
+		if tok.AccessToken != profile.Token.AccessToken {
+			profile.Token = tok
+			if err := profile.Save(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to save refreshed token: %v\n", err)
+			}
+		}
+
 		return tok, nil
 	}))
 }
