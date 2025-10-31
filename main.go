@@ -9,8 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
-	"os/user"
 	"path"
 	"strings"
 )
@@ -152,13 +152,27 @@ func parseCommandLine(opts *CmdOptions) error {
 	return nil
 }
 
-// FIXME: Should we use different methods based on OS?
-// Like XDG_CONFIG_HOME for macos and linux?
-func getConfigDir() (string, error) {
-	usr, err := user.Current()
+func ensureConfigDir() error {
+	dir, err := getConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get current user")
+		return err
 	}
 
-	return path.Join(usr.HomeDir, ".config", "snowy"), nil
+	_, err = os.Stat(dir)
+	if err == nil {
+		return nil
+	}
+
+	if _, ok := err.(*fs.PathError); ok {
+		return os.Mkdir(dir, os.FileMode(0700))
+	}
+	return err
+}
+
+func getConfigDir() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get users config dir")
+	}
+	return path.Join(dir, "snowy"), nil
 }
