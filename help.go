@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-var loginUsageTmpl = `Usage: %s login --instance INSTANCE_URL --client-id CLIENT_ID
+var loginUsageTmpl = `Usage: %s login [--instance INSTANCE_URL] [--client-id CLIENT_ID]
 The login command only support OAuth2.0 authentication with public PKCS.
 
 SERVICENOW:
@@ -26,6 +26,14 @@ SERVICENOW:
   4. Click on "Submit"
 
   Take note of the Client ID as you will need this when authenticating.
+
+AUTHENTICATION:
+  First time you authenticate you must provide --instance and --client-id.
+  If your refresh_token has expired you can leverage the existing config to
+  request a new token without specifying --instance and --client-id.
+
+  If you want to authenticate as another user or instance, you must provide
+  --instance and --client-id.
 
 OPTIONS:
 
