@@ -2,6 +2,9 @@
 
 **snowy** is CLI application for interacting with ServiceNow API.
 
+> [!CAUTION]
+> This is a pet project for me to learn how to build CLI tools with Go. Use at your own risk.
+
 ## Installation
 
 ```
@@ -11,7 +14,21 @@ go install github.com/claw0ry/snowy@latest
 ## Usage
 
 ```
-Usage: snowy [ OPTIONS... ] ARGS
+Usage: %s [COMMAND] [ OPTIONS... ] ARGS
+COMMANDS:
+  By default snowy will assume that the COMMAND is 'table' if nothing is
+  specified.
+
+  table
+        Interact with the ServiceNow Table API. This is the default command
+        if nothing is specified.
+
+  login
+        Start the OAuth2.0 public client PKCS login flow.
+
+  logout
+        Removes your authentication profile. Requires you to login next time.
+
 ARGUMENTS:
   ARGS must be either the table_name or a combination of table_name and sys_id
   in the format 'table_name/sys_id'.
@@ -45,19 +62,22 @@ OPERATIONS:
     request method, otherwise it will assume a get operation.
 
 AUTHENTICATION:
-  Most calls to ServiceNow Table API requires authentication. Snowy presents
-  different ways to authenticate. If credentials are not set by arguments
-  (see OPTIONS) then snowy will look for credentials in the following
-  environment variables.
+  Most calls to ServiceNow REST API requires authentication. Snowy presents
+  different ways to authenticate. OAuth2 is the default method, unless --user
+  or --auth-file is present.
 
-  - SNOWY_INSTANCE_URL
-  - SNOWY_USERNAME
-  - SNOWY_PASSWORD
+  OAUTH2
 
-  If they are not set then it will look for a ~/.snowy or another file if
-  specified by --auth-file.
+  This is the default method of authentication. See 'snowy login --help' for
+  more information.
 
-  The snowy credential file must be in the format of:
+  BASIC AUTHENTICATION
+
+  You can authenticate with Basic Authentication in two ways. Either by
+  specifying the --instance and --user options or providing an auth-file
+  with --auth-file (see OPTIONS/AUTHENTCATION).
+
+  The snowy auth-file must be in the format of:
 
   <instance_url>
   <username>
@@ -115,13 +135,12 @@ OPTIONS:
   -i, --instance
         Specify the ServiceNow instance name or full URL. snowy will add
         https:// to the value if not present. Must be used in conjuction
-        with -u, --user
+        with -u, --user or --client-id.
 
   -u, --user
-        Specify the user name and password to use for API authentication.
-        Overrides --auth-file and environment variables. The password will be
-        encoded to base64 by snowy. If you only specify the user name, Snowy
-        will prompt you for a password.
+        Specify the user name and password to use for Basic Authentication.
+        Overrides --auth-file. The password will be encoded to base64 by snowy.
+        If you only specify the user name, snowy will prompt you for a password.
 
         Must be used in conjuction with -i, --instance
 
@@ -130,10 +149,17 @@ OPTIONS:
         > snowy --instance https://dev3843.service-now.com --user username:password incident
         > snowy --instance https://dev3848.service-now.com --user username incident
 
+  --client-id
+        Specify the client id for the ServiceNow OAuth2.0 application to
+        authenticate with. This will enforce OAuth2 authentication instead of
+        Basic Authentication.
+
+        Only relevant if COMMAND is login. Must be used in conjuction with
+        --instance. For more information run 'snowy login --help'.
+
   --auth-file
-        By default, Snowy will look for credentials in environment variables
-        or ~/.snowy. But you can specify another path to a credential file if
-        you want.
+        You can specify a path to an auth-file if you want. snowy will then
+        use the credentials in that file to authenticate through Basic Authentication.
 
         Examples:
 
@@ -153,28 +179,68 @@ OPTIONS:
 
 ## Examples
 
-### Get the number of records retrieved.
+### Authenticate with OAuth2
+
+```console
+snowy login -i "https://dev34567.service-now.com" --client-id "<CLIENT_ID>"
+snowy -l 1 -f number incident
+{"result":[{"number":"INC0000001"}]}
+```
+
+### Authenticate with Basic Authentication
+
+Without specifying a password.
+
+```console
+snowy -i "https://dev34567.service-now.com" -u "my_user" -l 1 -f number incident
+Password:
+{"result":[{"number":"INC0000001"}]}
+```
+
+With speciying a password.
+
+```console
+snowy -i "https://dev34567.service-now.com" -u "my_user:my_password" -l 1 -f number incident
+{"result":[{"number":"INC0000001"}]}
+```
+
+By using an auth-file.
+
+```console
+$ cat ~/.config/snowy/dev
+https://dev34567.service-now.com
+admin
+Pa55w0rd
+snowy --auth-file ~/.config/snowy/dev -l 1 -f number incident
+{"result":[{"number":"INC0000001"}]}
+```
+
+Then you can easily switch between instances or users.
+
+```console
+$ cat ~/.config/snowy/dev
+https://dev34567.service-now.com
+admin
+Pa55w0rd
+$ cat ~/.config/snowy/test
+https://contosotest.service-now.com
+admin
+Pa55w0rd
+$ cat ~/.config/snowy/prod
+https://contoso.service-now.com
+admin
+Pa55w0rd
+$ snowy --auth-file ~/.config/snowy/dev -f value -q "name=instance_name" sys_properties
+{"result":[{"value":"dev34567"}]}
+$ snowy --auth-file ~/.config/snowy/test -f value -q "name=instance_name" sys_properties
+{"result":[{"value":"contosotest"}]}
+$ snowy --auth-file ~/.config/snowy/prod -f value -q "name=instance_name" sys_properties
+{"result":[{"value":"contoso"}]}
+```
+
+### Get the number of records retrieved
 
 ```console
 snowy incident | jq '.result | length'
 ```
 
-### Easily switch between prod, test, dev
-
-```console
-$ cat ~/.snowy/dev
-https://prod.serivce-now.com
-admin
-Pa55w0rd
-$ cat ~/.snowy/test
-https://prod.serivce-now.com
-admin
-Pa55w0rd
-$ cat ~/.snowy/prod
-https://prod.serivce-now.com
-admin
-Pa55w0rd
-$ snowy --auth-file ~/.snowy/dev incident
-$ snowy --auth-file ~/.snowy/test incident
-$ snowy --auth-file ~/.snowy/prod incident
-```
