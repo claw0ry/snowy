@@ -12,6 +12,21 @@ import (
 var loginUsageTmpl = `Usage: %s login --instance INSTANCE_URL --client-id CLIENT_ID
 The login command only support OAuth2.0 authentication with public PKCS.
 
+SERVICENOW:
+  To use OAuth2.0 with ServiceNow you must configure an OAuth2.0 application in
+  your ServiceNow instance.
+
+  1. Go to System OAuth -> Application Registry
+  2. Create a new entry and choose "Create an OAuth API endpoint for external clients"
+	 as the type of OAuth application.
+  3. Set the following values:
+	 - Name: Snowy CLI
+	 - Redirect URL: http://localhost:1914
+	 - Public Client: Yes
+  4. Click on "Submit"
+
+  Take note of the Client ID as you will need this when authenticating.
+
 OPTIONS:
 
   -i, --instance
@@ -26,7 +41,7 @@ OPTIONS:
         Must be used in conjuction with --instance.
 `
 
-var basicUsageTmpl = `snowy is a CLI application for interacting with ServiceNow Table REST API
+var basicUsageTmpl = `snowy is a CLI application for interacting with ServiceNow REST API
 Usage: %s [COMMAND] [ OPTIONS... ] ARGS
 COMMANDS:
   By default snowy will assume that the COMMAND is 'table' if nothing is
@@ -75,19 +90,22 @@ OPERATIONS:
     request method, otherwise it will assume a get operation.
 
 AUTHENTICATION:
-  Most calls to ServiceNow Table API requires authentication. Snowy presents
-  different ways to authenticate. If credentials are not set by arguments
-  (see OPTIONS) then snowy will look for credentials in the following
-  environment variables.
+  Most calls to ServiceNow REST API requires authentication. Snowy presents
+  different ways to authenticate. OAuth2 is the default method, unless --user
+  or --auth-file is present.
 
-  - SNOWY_INSTANCE_URL
-  - SNOWY_USERNAME
-  - SNOWY_PASSWORD
+  OAUTH2
 
-  If they are not set then it will look for a ~/.snowy or another file if
-  specified by --auth-file.
+  This is the default method of authentication. See 'snowy login --help' for
+  more information.
 
-  The snowy credential file must be in the format of:
+  BASIC AUTHENTICATION
+
+  You can authenticate with Basic Authentication in two ways. Either by
+  specifying the --instance and --user options or providing an auth-file
+  with --auth-file (see OPTIONS/AUTHENTCATION).
+
+  The snowy auth-file must be in the format of:
 
   <instance_url>
   <username>
@@ -148,10 +166,9 @@ OPTIONS:
         with -u, --user or --client-id.
 
   -u, --user
-        Specify the user name and password to use for API authentication.
-        Overrides --auth-file and environment variables. The password will be
-        encoded to base64 by snowy. If you only specify the user name, Snowy
-        will prompt you for a password.
+        Specify the user name and password to use for Basic Authentication.
+        Overrides --auth-file. The password will be encoded to base64 by snowy.
+        If you only specify the user name, snowy will prompt you for a password.
 
         Must be used in conjuction with -i, --instance
 
@@ -165,12 +182,12 @@ OPTIONS:
         authenticate with. This will enforce OAuth2 authentication instead of
         Basic Authentication.
 
-        Must be used in conjuction with --instance.
+        Only relevant if COMMAND is login. Must be used in conjuction with
+        --instance. For more information run 'snowy login --help'.
 
   --auth-file
-        By default, Snowy will look for credentials in environment variables
-        or ~/.snowy. But you can specify another path to a credential file if
-        you want.
+        You can specify a path to an auth-file if you want. snowy will then
+        use the credentials in that file to authenticate through Basic Authentication.
 
         Examples:
 
