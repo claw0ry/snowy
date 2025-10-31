@@ -24,9 +24,25 @@ const (
 )
 
 func doLoginCommand(opts *CmdOptions) error {
+
 	instance_url := strings.TrimSpace(opts.Instance)
 	client_id := strings.TrimSpace(opts.ClientID)
 
+	// try to login using cached config
+	if instance_url == "" && client_id == "" {
+		profile, _ := LoadOAuth2Profile()
+		if profile != nil {
+			token, err := authorizeInteractive(context.Background(), profile.Config)
+			if err != nil {
+				return err
+			}
+			profile.Token = token
+			profile.Save()
+			return nil
+		}
+	}
+
+	// otherwise expect config from commandline
 	if instance_url == "" {
 		return fmt.Errorf("Flag '--instance' is either not defined or empty.")
 	}
@@ -52,7 +68,7 @@ func doLoginCommand(opts *CmdOptions) error {
 		return err
 	}
 
-	profile := OAuth2Profile{
+	profile := &OAuth2Profile{
 		InstanceURL: instance_url,
 		Token:       token,
 		Config:      oauthCfg,
