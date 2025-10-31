@@ -10,7 +10,40 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
+
+type Operation string
+
+var (
+	OperationGet    Operation = "get"
+	OperationList   Operation = "list"
+	OperationInsert Operation = "insert"
+	OperationUpdate Operation = "update"
+	OperationDelete Operation = "delete"
+)
+
+// TODO Maybe return some error message if args are not matching with the operation?
+// This is really only for --delete. It should display an error if --delete is set when a resource only
+// contains a table_name
+func presumeOperation(opts *CmdOptions) Operation {
+	if strings.Contains(opts.Resource, "/") {
+		if opts.ShouldDelete {
+			return OperationDelete
+		}
+
+		if opts.Data != "" {
+			return OperationUpdate
+		}
+		return OperationGet
+	}
+
+	if opts.Data != "" {
+		return OperationInsert
+	}
+
+	return OperationList
+}
 
 func doGetOperation(client *Client, opts *CmdOptions) error {
 	params := url.Values{}

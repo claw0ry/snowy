@@ -6,32 +6,43 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
+	"os"
 )
 
-type Credentials struct {
-	InstanceURL string
-	Username    string
-	Password    string
-}
-
 type Client struct {
-	*Credentials
-	httpClient *http.Client
+	InstanceURL string
+	httpClient  *http.Client
 }
 
-func NewClient(c *Credentials) Client {
-	client := &http.Client{
-		Timeout: time.Second * 30,
+func NewBasicAuthClient(c *BasicAuthCredential) *Client {
+	return &Client{
+		InstanceURL: c.InstanceURL,
+		httpClient:  newBasicAuthClient(c.Username, c.Password),
+	}
+}
+
+func NewOAuth2Client(ctx context.Context) (*Client, error) {
+	profile, err := LoadOAuth2Profile()
+	if err != nil {
+		if _, ok := err.(*os.PathError); ok {
+			return nil, fmt.Errorf("No profile detected. Please run '%s login'.", os.Args[0])
+		}
+		return nil, err
 	}
 
-	return Client{
-		Credentials: c,
-		httpClient:  client,
+	c, err := newOAuth2Client(ctx, profile)
+	if err != nil {
+		return nil, err
 	}
+
+	return &Client{
+		InstanceURL: profile.InstanceURL,
+		httpClient:  c,
+	}, nil
 }
 
 func (c Client) Get(endpoint string, params url.Values) (*http.Response, error) {
@@ -40,9 +51,6 @@ func (c Client) Get(endpoint string, params url.Values) (*http.Response, error) 
 	if err != nil {
 		return nil, fmt.Errorf("[get] failed to create request: %w", err)
 	}
-
-	req.Header.Add("Accept", "application/json")
-	req.SetBasicAuth(c.Username, c.Password)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -59,9 +67,7 @@ func (c Client) Post(endpoint string, params url.Values, body []byte) (*http.Res
 		return nil, fmt.Errorf("[post] failed to create request: %w", err)
 	}
 
-	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
-	req.SetBasicAuth(c.Username, c.Password)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -78,9 +84,7 @@ func (c Client) Patch(endpoint string, params url.Values, body []byte) (*http.Re
 		return nil, fmt.Errorf("[patch] failed to create request: %w", err)
 	}
 
-	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
-	req.SetBasicAuth(c.Username, c.Password)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -96,9 +100,6 @@ func (c Client) Delete(endpoint string, params url.Values) (*http.Response, erro
 	if err != nil {
 		return nil, fmt.Errorf("[delete] failed to create request: %w", err)
 	}
-
-	req.Header.Add("Accept", "application/json")
-	req.SetBasicAuth(c.Username, c.Password)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
