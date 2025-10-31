@@ -28,6 +28,10 @@ func doLoginCommand(opts *CmdOptions) error {
 	instance_url := strings.TrimSpace(opts.Instance)
 	client_id := strings.TrimSpace(opts.ClientID)
 
+	if err := ensureConfigDir(); err != nil {
+		return fmt.Errorf("failed to ensure config dir exist: %+v", err)
+	}
+
 	// try to login using cached config
 	if instance_url == "" && client_id == "" {
 		profile, _ := LoadOAuth2Profile()
